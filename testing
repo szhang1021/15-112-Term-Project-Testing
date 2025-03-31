@@ -7,23 +7,25 @@ import numpy as np
 plt.ion()  # Turn on interactive mode for live updating
 
 def main():
-    mp_pose = mp.solutions.pose  # Load MediaPipe Pose model
-    pose = mp_pose.Pose()
-    mp_drawing = mp.solutions.drawing_utils  # Utility for drawing
+    mpPose = mp.solutions.pose  # Load MediaPipe Pose model
+    pose = mpPose.Pose()
+    mpDrawing = mp.solutions.drawing_utils  # Utility for drawing
     
     cap = cv2.VideoCapture(0)  # Open webcam
     
-    x_data = []  # X-coordinates over time
-    y_data = []  # Y-coordinates over time
-    time_data = []  # Time stamps
+    xData = []  # X-coordinates over time
+    yData = []  # Y-coordinates over time
+    verticalDistanceData = []  # Vertical distance between mouth/chin and shoulders
+    timeData = []  # Time stamps
     
-    start_time = time.time()
+    startTime = time.time()
     fig, ax = plt.subplots()
     ax.set_xlabel("Time (s)")
-    ax.set_ylabel("Position")
+    ax.set_ylabel("Position / Vertical Distance")
     ax.set_title("Landmark Position Over Time")
-    line_x, = ax.plot([], [], label='X Position')
-    line_y, = ax.plot([], [], label='Y Position')
+    lineX, = ax.plot([], [], label='X Position')
+    lineY, = ax.plot([], [], label='Y Position')
+    lineVD, = ax.plot([], [], label='Vertical Distance', linestyle='dashed')
     ax.legend()
     
     while cap.isOpened():
@@ -32,29 +34,40 @@ def main():
             break
         
         frame = cv2.flip(frame, 1)  # Flip horizontally for natural interaction
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # Convert to RGB
+        rgbFrame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # Convert to RGB
         
-        results = pose.process(rgb_frame)  # Detect pose
+        results = pose.process(rgbFrame)  # Detect pose
         
         if results.pose_landmarks:
-            mp_drawing.draw_landmarks(
-                frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS,
-                mp_drawing.DrawingSpec(color=(0, 255, 0), thickness=2, circle_radius=2),
-                mp_drawing.DrawingSpec(color=(0, 0, 255), thickness=2, circle_radius=2)
+            mpDrawing.draw_landmarks(
+                frame, results.pose_landmarks, mpPose.POSE_CONNECTIONS,
+                mpDrawing.DrawingSpec(color=(0, 255, 0), thickness=2, circle_radius=2),
+                mpDrawing.DrawingSpec(color=(0, 0, 255), thickness=2, circle_radius=2)
             )
             
             # Collect landmark data for the nose (or any landmark of choice)
-            mouth_right = results.pose_landmarks.landmark[mp_pose.PoseLandmark.MOUTH_CONNECTIONS]
-            right_shoulder = results.pose_landmarks.landmark[mp_pose.PoseLandmark.right_shoulder]
-            # x_data.append(nose.x)
-            y_data.append(mouth_right.y - right_shoulder.y)
-            time_data.append(time.time() - start_time)
+            nose = results.pose_landmarks.landmark[mpPose.PoseLandmark.NOSE]
+            mouthLeft = results.pose_landmarks.landmark[mpPose.PoseLandmark.MOUTH_LEFT]
+            mouthRight = results.pose_landmarks.landmark[mpPose.PoseLandmark.MOUTH_RIGHT]
+            leftShoulder = results.pose_landmarks.landmark[mpPose.PoseLandmark.LEFT_SHOULDER]
+            rightShoulder = results.pose_landmarks.landmark[mpPose.PoseLandmark.RIGHT_SHOULDER]
+            
+            mouthY = (mouthLeft.y + mouthRight.y) / 2  # Approximate mouth position
+            shoulderY = (leftShoulder.y + rightShoulder.y) / 2  # Average shoulder height
+            verticalDistance = abs(mouthY - shoulderY)  # Distance between mouth and shoulders
+            
+            xData.append(nose.x)
+            yData.append(nose.y)
+            verticalDistanceData.append(verticalDistance)
+            timeData.append(time.time() - startTime)
             
             # Update the graph in real-time
-            line_x.set_xdata(time_data)
-            line_x.set_ydata(x_data)
-            line_y.set_xdata(time_data)
-            line_y.set_ydata(y_data)
+            lineX.set_xdata(timeData)
+            lineX.set_ydata(xData)
+            lineY.set_xdata(timeData)
+            lineY.set_ydata(yData)
+            lineVD.set_xdata(timeData)
+            lineVD.set_ydata(verticalDistanceData)
             ax.relim()
             ax.autoscale_view()
             plt.draw()
@@ -73,5 +86,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
