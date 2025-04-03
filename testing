@@ -3,6 +3,7 @@ import mediapipe as mp
 import matplotlib.pyplot as plt
 import time
 import numpy as np
+from mpl_toolkits.mplot3d import Axes3D
 
 plt.ion()  # Turn on interactive mode for live updating
 
@@ -15,18 +16,11 @@ def main():
     
     xData = []  # X-coordinates over time
     yData = []  # Y-coordinates over time
+    zData = []  # Z-coordinates over time
     verticalDistanceData = []  # Vertical distance between mouth/chin and shoulders
     timeData = []  # Time stamps
     
     startTime = time.time()
-    fig, ax = plt.subplots()
-    ax.set_xlabel("Time (s)")
-    ax.set_ylabel("Position / Vertical Distance")
-    ax.set_title("Landmark Position Over Time")
-    lineX, = ax.plot([], [], label='X Position')
-    lineY, = ax.plot([], [], label='Y Position')
-    lineVD, = ax.plot([], [], label='Vertical Distance', linestyle='dashed')
-    ax.legend()
     
     while cap.isOpened():
         ret, frame = cap.read()
@@ -45,33 +39,23 @@ def main():
                 mpDrawing.DrawingSpec(color=(0, 0, 255), thickness=2, circle_radius=2)
             )
             
-            # Collect landmark data for the nose (or any landmark of choice)
-            nose = results.pose_landmarks.landmark[mpPose.PoseLandmark.NOSE]
+            # Collect landmark data for mouth and shoulders
             mouthLeft = results.pose_landmarks.landmark[mpPose.PoseLandmark.MOUTH_LEFT]
             mouthRight = results.pose_landmarks.landmark[mpPose.PoseLandmark.MOUTH_RIGHT]
             leftShoulder = results.pose_landmarks.landmark[mpPose.PoseLandmark.LEFT_SHOULDER]
             rightShoulder = results.pose_landmarks.landmark[mpPose.PoseLandmark.RIGHT_SHOULDER]
             
-            mouthY = (mouthLeft.y + mouthRight.y) / 2  # Approximate mouth position
+            mouthX = (mouthLeft.x + mouthRight.x) / 2  # Approximate mouth X position
+            mouthY = (mouthLeft.y + mouthRight.y) / 2  # Approximate mouth Y position
+            mouthZ = (mouthLeft.z + mouthRight.z) / 2  # Approximate mouth Z position
             shoulderY = (leftShoulder.y + rightShoulder.y) / 2  # Average shoulder height
             verticalDistance = abs(mouthY - shoulderY)  # Distance between mouth and shoulders
             
-            xData.append(nose.x)
-            yData.append(nose.y)
+            xData.append(mouthX)
+            yData.append(mouthY)
+            zData.append(mouthZ)
             verticalDistanceData.append(verticalDistance)
             timeData.append(time.time() - startTime)
-            
-            # Update the graph in real-time
-            lineX.set_xdata(timeData)
-            lineX.set_ydata(xData)
-            lineY.set_xdata(timeData)
-            lineY.set_ydata(yData)
-            lineVD.set_xdata(timeData)
-            lineVD.set_ydata(verticalDistanceData)
-            ax.relim()
-            ax.autoscale_view()
-            plt.draw()
-            plt.pause(0.01)
         
         cv2.putText(frame, "Press 'q' to exit", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
         cv2.imshow("Human Body Outline", frame)  # Display the frame
@@ -82,6 +66,15 @@ def main():
     cap.release()
     cv2.destroyAllWindows()
     plt.ioff()
+    
+    # Plot 3D graph after camera stops
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.set_xlabel("X Position")
+    ax.set_ylabel("Y Position")
+    ax.set_zlabel("Z Position")
+    ax.set_title("3D Landmark Movement")
+    ax.scatter(xData, yData, zData, c=timeData, cmap='viridis', marker='o')
     plt.show()
 
 if __name__ == "__main__":
