@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import time
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
+from cmu_graphics import *
 
 plt.ion()  # Turn on interactive mode for live updating
 
@@ -54,6 +55,7 @@ def main():
             xData.append(mouthX)
             yData.append(mouthY)
             zData.append(mouthZ)
+
             verticalDistanceData.append(verticalDistance)
             timeData.append(time.time() - startTime)
         
@@ -79,3 +81,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+cmu_graphics.run()
+
