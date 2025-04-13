@@ -5,6 +5,7 @@ import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
 from feedback import getPositiveFeedback 
+import time
 
 def onAppStart(app):
     # Initialize MediaPipe components
@@ -59,7 +60,13 @@ def onAppStart(app):
     processFrame(app)
     app.steps = 0
 
-    app.message = ''
+
+    # Display Encouragement Messaging
+    app.displayMessage = False
+    app.message = ' '
+    app.postureType = ' '
+
+    app.postureHistory = []
 
 def processFrame(app):
     success, image = app.cap.read()
@@ -238,7 +245,7 @@ def handleCalibration(app, currentMetrics):
             print("Posture calibration complete!")
 
 def evaluatePosture(app, currentMetrics):
-    badPostureTypes = []
+    badPostureTypes = ""
 
     # 1. Forward head position
     idealOffset = app.idealPostureMetrics['earToShoulderXOffset']
@@ -279,6 +286,8 @@ def evaluatePosture(app, currentMetrics):
         chinDistScore * 0.3
     )
 
+    app.postureHistory.append((time.time(), app.postureScore))
+
     # Save the issues detected directly in the app object
     app.postureTypes = badPostureTypes
     
@@ -318,8 +327,60 @@ def onKeyPress(app, key):
         app.faceMesh.close()
         app.stop()
 
-    if key == 'f':
+    if key == 'f': # Press 'f' to display encouragement message
+        app.displayMessage = not app.displayMessage
         app.message = getPositiveFeedback(app.postureTypes)
+
+def drawGraph(app):
+    # Graph dimensions
+    graphLeft = 50
+    graphTop = 300
+    graphWidth = 300
+    graphHeight = 150
+
+    drawRect(graphLeft, graphTop, graphWidth, graphHeight, fill='lightgrey')
+    drawLine(graphLeft, graphTop + graphHeight, graphLeft + graphWidth, graphTop + graphHeight)  # x-axis
+    drawLine(graphLeft, graphTop, graphLeft, graphTop + graphHeight)  # y-axis
+
+    if len(app.postureHistory) < 2:
+        drawLabel("Not enough data", graphLeft + graphWidth / 2, graphTop + graphHeight / 2)
+        return
+
+    # Extract data
+    times = [t for (t, s) in app.postureHistory]
+    scores = [s for (t, s) in app.postureHistory]
+    minTime = min(times)
+    maxTime = max(times)
+    timeRange = max(maxTime - minTime, 1)
+    scoreRange = 100  # postureScore is 0–100
+
+    # Scale points for plotting
+    scaledPoints = []
+    for (time, score) in app.postureHistory:
+        x = graphLeft + ((time - minTime) / timeRange) * graphWidth
+        y = graphTop + graphHeight - ((score / scoreRange) * graphHeight)
+        scaledPoints.append((x, y))
+
+    # Draw the line
+    for i in range(1, len(scaledPoints)):
+        x0, y0 = scaledPoints[i - 1]
+        x1, y1 = scaledPoints[i]
+        drawLine(x0, y0, x1, y1, fill='blue', lineWidth=2)
+
+    # Draw circles every 5 seconds on the time axis (assuming 30 fps = 150 steps)
+    interval = 5
+    nextTick = ((minTime // interval) + 1) * interval  # first tick after minTime
+
+    while nextTick < maxTime:
+        x = graphLeft + ((nextTick - minTime) / timeRange) * graphWidth
+        y = graphTop + graphHeight
+        drawCircle(x, y, 4, fill='red')
+        nextTick += interval
+
+    # Show current score
+    latestTime, latestScore = app.postureHistory[-1]
+    drawLabel(f"Current: {int(latestScore)}", graphLeft + graphWidth - 60, graphTop + 10, size=12, fill='black')
+
 
 def redrawAll(app):
     if hasattr(app, 'image'):
@@ -362,10 +423,20 @@ def redrawAll(app):
             drawRect(10, 110, 250, 10, fill=None, border='black')
             barWidth = min(250, max(0, app.postureScore * 2.5))
             drawRect(10, 110, barWidth, 10, fill=scoreColor)
-        
+            
+            # Display encouraging message
+            if app.displayMessage:
+                drawLabel(app.message, app.width/2, 65, size = 16)
+
+            drawGraph(app)
+
         # Instructions at bottom
         drawLabel("Press 'c' to calibrate, 'q' to quit", app.width/2, app.height - 20, 
                  size=12, bold=True)
+
+
+        
+
     else:
         drawLabel("Starting camera...", app.width/2, app.height/2, size=20)
 
